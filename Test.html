@@ -1,250 +1,357 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D.U.E. TERMINAL - OVERRIDE</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;500;700&display=swap');
 
-<title>D.U.E Station</title>
+        :root {
+            --primary: #facc15;
+            --bg: #050505;
+            --danger: #ef4444;
+            --safe: #22c55e;
+            --warn: #f97316;
+        }
 
-<script src="https://cdn.tailwindcss.com"></script>
+        body {
+            background: var(--bg);
+            color: #d1d5db;
+            font-family: 'Fira Code', monospace;
+            overflow-x: hidden;
+            margin: 0;
+        }
 
-<script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+        /* CRT Overlay Effect */
+        body::before {
+            content: " ";
+            display: block;
+            position: fixed;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 9999;
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+        }
 
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+        .glitch {
+            text-shadow: 0.05em 0 0 rgba(255, 0, 0, 0.75),
+                        -0.025em -0.05em 0 rgba(0, 255, 0, 0.75),
+                        0.025em 0.05em 0 rgba(0, 0, 255, 0.75);
+            animation: glitch 500ms infinite;
+        }
 
-<style>
-body{
-background:#030303;
-font-family:monospace;
-}
-</style>
+        @keyframes glitch {
+            0% { text-shadow: 0.05em 0 0 #ff0000, -0.05em -0.025em 0 #00ff00, 0.025em 0.05em 0 #0000ff; }
+            14% { text-shadow: 0.05em 0 0 #ff0000, -0.05em -0.025em 0 #00ff00, 0.025em 0.05em 0 #0000ff; }
+            15% { text-shadow: -0.05em -0.025em 0 #ff0000, 0.025em 0.025em 0 #00ff00, -0.05em -0.05em 0 #0000ff; }
+            49% { text-shadow: -0.05em -0.025em 0 #ff0000, 0.025em 0.025em 0 #00ff00, -0.05em -0.05em 0 #0000ff; }
+            50% { text-shadow: 0.025em 0.05em 0 #ff0000, 0.05em 0 0 #00ff00, 0 -0.05em 0 #0000ff; }
+            99% { text-shadow: 0.025em 0.05em 0 #ff0000, 0.05em 0 0 #00ff00, 0 -0.05em 0 #0000ff; }
+            100% { text-shadow: -0.025em 0 0 #ff0000, -0.025em -0.025em 0 #00ff00, -0.025em -0.05em 0 #0000ff; }
+        }
+
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: #000; }
+        ::-webkit-scrollbar-thumb { background: var(--primary); }
+
+        .scanline {
+            width: 100%;
+            height: 100px;
+            z-index: 10000;
+            background: linear-gradient(0deg, rgba(0, 0, 0, 0) 0%, rgba(255, 255, 255, 0.05) 10%, rgba(0, 0, 0, 0.1) 100%);
+            opacity: 0.1;
+            position: fixed;
+            bottom: 100%;
+            animation: scanline 10s linear infinite;
+        }
+
+        @keyframes scanline {
+            0% { bottom: 100%; }
+            100% { bottom: -100px; }
+        }
+    </style>
 </head>
-
 <body>
-
-<div id="root"></div>
-
-<script type="text/babel">
-
-const {useState,useEffect} = React
-
-const DATA = [
-{
-id:"DUE-VOL-01",
-title:"Physics of Stalled Time",
-summary:"Why unfinished events create unstable reality pockets.",
-stability:9.8
-},
-{
-id:"DUE-VOL-10",
-title:"18:42 Diner Reset",
-summary:"Proposal interrupted causing 5-second loop for 40 years.",
-stability:1.4
-},
-{
-id:"DUE-OBJ-99",
-title:"Echoing Key",
-summary:"Opens the door of the last room you occupied.",
-stability:7.2
-}
-]
-
-function LockScreen({unlock}){
-
-const [progress,setProgress] = useState(0)
-const [running,setRunning] = useState(false)
-
-function start(){
-setRunning(true)
-
-let p = 0
-const t = setInterval(()=>{
-p+=10
-setProgress(p)
-
-if(p>=100){
-clearInterval(t)
-setTimeout(unlock,400)
-}
-
-},120)
-}
-
-return(
-<div className="h-screen flex items-center justify-center flex-col text-yellow-400 gap-8">
-
-<h1 className="text-4xl font-bold tracking-widest">
-D.U.E ARCHIVE
-</h1>
-
-{!running && (
-<button
-onClick={start}
-className="border px-8 py-3 hover:bg-yellow-500 hover:text-black transition">
-INITIATE ACCESS
-</button>
-)}
-
-{running && (
-<div className="w-80">
-
-<div className="text-xs mb-2">Decrypting node...</div>
-
-<div className="w-full h-2 bg-gray-800">
-
-<div
-className="h-full bg-yellow-400"
-style={{width:progress+"%"}}
-/>
-
-</div>
-
-</div>
-)}
-
-</div>
-)
-
-}
-
-function Record({item,onSelect}){
-
-const color =
-item.stability < 4
-? "text-red-400"
-: item.stability > 8
-? "text-green-400"
-: "text-yellow-400"
-
-return(
-
-<div
-onClick={()=>onSelect(item)}
-className="p-5 border border-gray-800 rounded-lg hover:border-yellow-500 cursor-pointer bg-black/50">
-
-<div className="flex justify-between">
-
-<div className="text-xs text-yellow-400">
-{item.id}
-</div>
-
-<div className={color}>
-{item.stability}
-</div>
-
-</div>
-
-<h3 className="text-lg font-bold mt-2">
-{item.title}
-</h3>
-
-<p className="text-sm text-gray-400 mt-2">
-{item.summary}
-</p>
-
-</div>
-
-)
-
-}
-
-function Inspector({item,close}){
-
-if(!item) return null
-
-return(
-
-<div className="fixed right-0 top-0 h-full w-96 bg-black border-l border-gray-800 p-6">
-
-<div className="flex justify-between mb-6">
-
-<h2 className="text-xl font-bold text-yellow-400">
-{item.title}
-</h2>
-
-<button onClick={close}>
-X
-</button>
-
-</div>
-
-<div className="space-y-4 text-sm">
-
-<div>ID: {item.id}</div>
-
-<div>Stability: {item.stability}</div>
-
-<div>{item.summary}</div>
-
-</div>
-
-</div>
-
-)
-
-}
-
-function Dashboard({data,onSelect}){
-
-return(
-
-<div className="max-w-5xl mx-auto">
-
-<h1 className="text-3xl font-bold text-yellow-400 mb-8">
-Archive Records
-</h1>
-
-<div className="grid md:grid-cols-2 gap-6">
-
-{data.map(item=>(
-<Record
-key={item.id}
-item={item}
-onSelect={onSelect}
-/>
-))}
-
-</div>
-
-</div>
-
-)
-
-}
-
-function App(){
-
-const [locked,setLocked] = useState(true)
-const [active,setActive] = useState(null)
-
-if(locked){
-return <LockScreen unlock={()=>setLocked(false)} />
-}
-
-return(
-
-<div className="text-gray-200 p-10">
-
-<Dashboard
-data={DATA}
-onSelect={setActive}
-/>
-
-<Inspector
-item={active}
-close={()=>setActive(null)}
-/>
-
-</div>
-
-)
-
-}
-
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>)
-
-</script>
-
+    <div class="scanline"></div>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        // --- EXTENDED DATABASE GENERATOR ---
+        const GENERATE_DATA = () => {
+            const base = [
+                { id: "DUE-VOL-01", title: "Physics of Stalled Time", cat: "Theory", stability: 9.8, risk: "Low", tags: ["Temporal", "Static"], desc: "Detailed breakdown of why events fail to conclude, leading to 'Ghost Frames' in local reality." },
+                { id: "DUE-VOL-10", title: "18:42 Diner Reset", cat: "Anomaly", stability: 1.4, risk: "Critical", tags: ["Loop", "Localized"], desc: "A five-second loop involving a spilled coffee cup. Attempting to catch the cup results in immediate temporal ejection." },
+                { id: "DUE-OBJ-99", title: "Echoing Key", cat: "Object", stability: 7.2, risk: "Medium", tags: ["Utility", "Spatial"], desc: "A brass key that only fits the lock of the last room the holder slept in, regardless of geographical distance." },
+                { id: "DUE-ENT-04", title: "The Unfinished Man", cat: "Entity", stability: 4.5, risk: "High", tags: ["Sentient", "Visual"], desc: "A humanoid figure consisting only of sketch lines. Highly hostile toward finished oil paintings." }
+            ];
+
+            // Generate 40x variety (simulated expansion)
+            const categories = ["Object", "Anomaly", "Entity", "Location", "Theory", "Protocol"];
+            const words = ["Quantum", "Fractal", "Void", "Hollow", "Flicker", "Silent", "Infinite", "Shattered", "Obsidian"];
+            
+            for(let i=100; i < 220; i++) {
+                const cat = categories[Math.floor(Math.random() * categories.length)];
+                const stab = (Math.random() * 10).toFixed(1);
+                base.push({
+                    id: `DUE-${cat.substring(0,3).toUpperCase()}-${i}`,
+                    title: `${words[Math.floor(Math.random()*words.length)]} ${words[Math.floor(Math.random()*words.length)]}`,
+                    cat: cat,
+                    stability: parseFloat(stab),
+                    risk: stab < 3 ? "Critical" : stab < 7 ? "High" : "Low",
+                    tags: ["Classified", cat],
+                    desc: "This record is currently being recovered from a corrupted sector. Physical integrity of the event is unconfirmed."
+                });
+            }
+            return base;
+        };
+
+        const DATA = GENERATE_DATA();
+
+        // --- COMPONENTS ---
+
+        const SystemLogs = () => {
+            const [logs, setLogs] = useState(["Initialising D.U.E Archive...", "Connecting to Node 0x4F2...", "Stability nominal."]);
+            
+            useEffect(() => {
+                const itv = setInterval(() => {
+                    const messages = [
+                        "Minor reality flicker detected in Sector 7",
+                        "Syncing database with paradox-resistant server...",
+                        "Packet loss in D.U.E-OBJ-99",
+                        "Unauthorized access attempt blocked.",
+                        "Memory leak in temporal buffers resolved."
+                    ];
+                    setLogs(prev => [messages[Math.floor(Math.random()*messages.length)], ...prev.slice(0, 4)]);
+                }, 4000);
+                return () => clearInterval(itv);
+            }, []);
+
+            return (
+                <div className="bg-black/80 border border-gray-800 p-3 rounded text-[10px] text-gray-500 font-mono mb-6">
+                    <div className="text-yellow-500/50 mb-1 font-bold">SYSTEM_LOGS_STREAM</div>
+                    {logs.map((l, i) => <div key={i} className="truncate">{`> ${l}`}</div>)}
+                </div>
+            );
+        };
+
+        const StabilityGauge = ({ value }) => {
+            const color = value < 3 ? "bg-red-500" : value < 7 ? "bg-yellow-500" : "bg-green-500";
+            return (
+                <div className="w-full bg-gray-900 h-1 mt-2 rounded-full overflow-hidden">
+                    <div 
+                        className={`h-full ${color} shadow-[0_0_10px_rgba(255,255,255,0.2)] transition-all duration-1000`} 
+                        style={{ width: `${value * 10}%` }}
+                    />
+                </div>
+            );
+        };
+
+        const Inspector = ({ item, close }) => {
+            if (!item) return null;
+            return (
+                <div className="fixed inset-y-0 right-0 w-full md:w-[450px] bg-black border-l border-yellow-500/30 p-8 z-50 animate__animated animate__slideInRight overflow-y-auto">
+                    <div className="flex justify-between items-start border-b border-gray-800 pb-4 mb-6">
+                        <div>
+                            <div className="text-xs text-yellow-500 mb-1">{item.id} // SECURE</div>
+                            <h2 className="text-3xl font-bold tracking-tighter text-white">{item.title}</h2>
+                        </div>
+                        <button onClick={close} className="text-gray-500 hover:text-white text-2xl">&times;</button>
+                    </div>
+
+                    <div className="space-y-8">
+                        <section>
+                            <h4 className="text-[10px] uppercase tracking-widest text-gray-500 mb-2">Stability Metrics</h4>
+                            <div className="flex items-center gap-4">
+                                <span className="text-4xl font-light text-yellow-400">{item.stability}</span>
+                                <div className="flex-1"><StabilityGauge value={item.stability} /></div>
+                            </div>
+                        </section>
+
+                        <section className="grid grid-cols-2 gap-4">
+                            <div className="p-3 bg-gray-900/50 border border-gray-800">
+                                <div className="text-[10px] text-gray-500 uppercase">Category</div>
+                                <div className="text-sm">{item.cat}</div>
+                            </div>
+                            <div className="p-3 bg-gray-900/50 border border-gray-800">
+                                <div className="text-[10px] text-gray-500 uppercase">Risk Level</div>
+                                <div className={`text-sm font-bold ${item.risk === 'Critical' ? 'text-red-500' : 'text-blue-400'}`}>
+                                    {item.risk}
+                                </div>
+                            </div>
+                        </section>
+
+                        <section>
+                            <h4 className="text-[10px] uppercase tracking-widest text-gray-500 mb-2">Description</h4>
+                            <p className="text-gray-400 leading-relaxed text-sm italic">"{item.desc}"</p>
+                        </section>
+
+                        <section>
+                            <h4 className="text-[10px] uppercase tracking-widest text-gray-500 mb-2">Containment Tags</h4>
+                            <div className="flex gap-2 flex-wrap">
+                                {item.tags.map(t => (
+                                    <span key={t} className="px-2 py-1 border border-gray-700 text-[10px] bg-gray-900">{t}</span>
+                                ))}
+                            </div>
+                        </section>
+                        
+                        <div className="pt-10">
+                            <button className="w-full py-3 border border-red-500/50 text-red-500 text-xs hover:bg-red-500 hover:text-black transition uppercase font-bold">
+                                Initialise Containment Protocol
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const Dashboard = ({ onSelect }) => {
+            const [filter, setFilter] = useState("All");
+            const [search, setSearch] = useState("");
+
+            const filtered = useMemo(() => {
+                return DATA.filter(item => 
+                    (filter === "All" || item.cat === filter) &&
+                    (item.title.toLowerCase().includes(search.toLowerCase()) || item.id.toLowerCase().includes(search.toLowerCase()))
+                );
+            }, [filter, search]);
+
+            return (
+                <div className="max-w-7xl mx-auto py-10 px-6">
+                    <header className="mb-12 flex flex-col md:flex-row justify-between items-end gap-6">
+                        <div>
+                            <h1 className="text-5xl font-black tracking-tighter text-yellow-400 mb-2 glitch">ARCHIVE_MANIFEST</h1>
+                            <p className="text-gray-500 text-xs tracking-widest uppercase">Department of Unfinished Events // Sub-Node 09</p>
+                        </div>
+                        <div className="flex flex-col gap-2 w-full md:w-auto">
+                            <input 
+                                type="text"
+                                placeholder="SEARCH_ID..."
+                                className="bg-transparent border border-gray-800 p-2 text-xs focus:border-yellow-500 outline-none w-full md:w-64"
+                                onChange={(e) => setSearch(e.target.value)}
+                            />
+                            <div className="flex gap-2">
+                                {["All", "Object", "Anomaly", "Entity", "Theory"].map(c => (
+                                    <button 
+                                        key={c}
+                                        onClick={() => setFilter(c)}
+                                        className={`text-[10px] px-3 py-1 border ${filter === c ? 'border-yellow-500 text-yellow-500' : 'border-gray-800 text-gray-600'}`}
+                                    >
+                                        {c.toUpperCase()}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </header>
+
+                    <SystemLogs />
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {filtered.map(item => (
+                            <div 
+                                key={item.id}
+                                onClick={() => onSelect(item)}
+                                className="group p-4 bg-gray-900/20 border border-gray-800/50 hover:border-yellow-500/50 transition-all cursor-pointer relative overflow-hidden"
+                            >
+                                <div className="absolute top-0 right-0 w-16 h-16 bg-yellow-500/5 -mr-8 -mt-8 rotate-45 group-hover:bg-yellow-500/20 transition-all"></div>
+                                
+                                <div className="flex justify-between items-start mb-4">
+                                    <span className="text-[9px] font-bold text-gray-600 group-hover:text-yellow-500/80 transition-colors">{item.id}</span>
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${item.stability < 3 ? 'bg-red-900/30 text-red-500' : 'bg-gray-800 text-gray-400'}`}>
+                                        {item.stability}
+                                    </span>
+                                </div>
+
+                                <h3 className="text-white font-bold text-sm mb-1 group-hover:translate-x-1 transition-transform uppercase tracking-tight">{item.title}</h3>
+                                <p className="text-gray-600 text-[11px] line-clamp-2 leading-relaxed">{item.desc}</p>
+                                
+                                <StabilityGauge value={item.stability} />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const LockScreen = ({ unlock }) => {
+            const [status, setStatus] = useState("Awaiting Credentials...");
+            const [loading, setLoading] = useState(false);
+
+            const handleUnlock = () => {
+                setLoading(true);
+                const steps = ["Decrypting Sector...", "Parsing Metadata...", "Bypassing Firewall...", "Access Granted."];
+                steps.forEach((step, i) => {
+                    setTimeout(() => {
+                        setStatus(step);
+                        if (i === steps.length - 1) setTimeout(unlock, 600);
+                    }, (i + 1) * 800);
+                });
+            };
+
+            return (
+                <div className="h-screen flex items-center justify-center flex-col p-6 text-center">
+                    <div className="mb-8 relative">
+                        <div className="text-yellow-500 text-7xl font-black italic glitch opacity-20 absolute -top-10 left-1/2 -translate-x-1/2 w-full">D.U.E.</div>
+                        <h1 className="text-4xl font-bold tracking-[0.3em] text-white relative z-10">CORE_LINK</h1>
+                    </div>
+                    
+                    <div className="w-64 h-1 bg-gray-900 mb-8 relative overflow-hidden">
+                        {loading && <div className="absolute inset-0 bg-yellow-500 animate-[loading_2s_ease-in-out_infinite]"></div>}
+                    </div>
+
+                    <p className="text-xs text-gray-500 mb-8 font-mono tracking-widest h-4">{status}</p>
+
+                    {!loading && (
+                        <button 
+                            onClick={handleUnlock}
+                            className="group relative px-12 py-4 border border-yellow-500/50 text-yellow-500 hover:bg-yellow-500 hover:text-black transition-all overflow-hidden"
+                        >
+                            <span className="relative z-10 font-bold tracking-widest">INITIALISE_SESSION</span>
+                            <div className="absolute inset-0 bg-yellow-400 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+                        </button>
+                    )}
+
+                    <style>{`
+                        @keyframes loading {
+                            0% { transform: translateX(-100%); }
+                            100% { transform: translateX(100%); }
+                        }
+                    `}</style>
+                </div>
+            );
+        };
+
+        // --- MAIN APP ---
+
+        function App() {
+            const [isLocked, setIsLocked] = useState(true);
+            const [activeItem, setActiveItem] = useState(null);
+
+            return (
+                <div className="min-h-screen selection:bg-yellow-500 selection:text-black">
+                    {isLocked ? (
+                        <LockScreen unlock={() => setIsLocked(false)} />
+                    ) : (
+                        <div className="animate__animated animate__fadeIn">
+                            <Dashboard onSelect={setActiveItem} />
+                            <Inspector item={activeItem} close={() => setActiveItem(null)} />
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById("root"));
+        root.render(<App />);
+    </script>
 </body>
 </html>
