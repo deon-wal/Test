@@ -1,0 +1,715 @@
+// App.jsx
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Search, X, Database, Lock, Shield, Box, Image as ImageIcon,
+  Map as MapIcon, Terminal, Activity, Star, Copy, Download,
+  Maximize2, Clock, CheckCircle2, AlertTriangle, Monitor
+} from "lucide-react";
+
+/* ---------- DATASET ---------- */
+const MASTER_DB = [
+  {
+    id: "DUE-VOL-01", type: "Doctrine", title: "The Physics of Stalled Time", classification: "CORE",
+    stability: "9.8", density: "0.12", wing: "Stacks",
+    summary: "A foundational study on why the universe refuses to let a story remain half-told.",
+    narrative: 'When an event is interrupted, the "narrative potential" doesn\'t vanish; it curdles. This creates pockets of high-density reality that can swallow witnesses whole.',
+    meta: "Director's Personal Copy. Note on margin: \"Do not leave this open near a clock.\"",
+    tags: ["Physics", "Origin"],
+    image: "https://images.unsplash.com/photo-1506318137071-a8e063b4bc04?auto=format&fit=crop&q=80&w=1200",
+    thumb: "https://images.unsplash.com/photo-1506318137071-a8e063b4bc04?auto=format&fit=crop&q=10&w=200",
+  },
+  {
+    id: "DUE-VOL-10", type: "Incident", title: "The 18:42 Diner Reset", classification: "Level III",
+    stability: "1.4", density: "0.84", wing: "Cases",
+    summary: "A marriage proposal interrupted by a spilled glass of water created a 5-second recursive loop.",
+    narrative: 'The "Yes" was never uttered. Now, Sector 14 smells of perpetually fresh coffee and stale panic. 12 people have been kneeling for 40 years.',
+    resolution: "Static field generator deployed to prevent leak into Sector 15.",
+    tags: ["Loop", "Human"],
+    image: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&q=80&w=1200",
+    thumb: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&q=10&w=200",
+  },
+  {
+    id: "DUE-OBJ-99", type: "Object", title: "The Echoing Key", classification: "EUCLID",
+    stability: "7.2", density: "0.31", wing: "Stacks",
+    summary: "An ornate brass key that, when turned in any lock, unlocks the door of the previous room you occupied.",
+    narrative: "Testing confirmed that the key ignores physical distance. One researcher ended up back in their childhood bedroom after opening a supply closet in Sector 4.",
+    meta: "Keep away from the Vault perimeter.",
+    tags: ["Spatial", "Utility"],
+    image: "https://images.unsplash.com/photo-1517055727180-d1a6761c54c7?auto=format&fit=crop&q=80&w=1200",
+    thumb: "https://images.unsplash.com/photo-1517055727180-d1a6761c54c7?auto=format&fit=crop&q=10&w=200",
+  },
+].concat(
+  Array.from({ length: 8 }).map((_, i) => ({
+    id: `DUE-DATA-${200 + i}`, type: "Fragment", title: `Ghost_Signal_${1024 + i * 7}`, classification: "LOW_RES",
+    stability: (Math.random() * 5 + 2).toFixed(1), density: Math.random().toFixed(2),
+    wing: i % 2 === 0 ? "Stacks" : "Cases",
+    summary: "Incomplete narrative scrap recovered from a temporal \"dead zone\".",
+    narrative: 'Digital artifacting prevents full reconstruction. The signal repeats the phrase: "The door was never closed."',
+    meta: "Auto-archived by Sentinel-9.", tags: ["Ghost_Data", "Signal"],
+    image: `https://images.unsplash.com/photo-1614728894747-a83421e2b9c9?auto=format&fit=crop&q=80&w=1200&sig=${i}`,
+    thumb: `https://images.unsplash.com/photo-1614728894747-a83421e2b9c9?auto=format&fit=crop&q=10&w=200&sig=${i}`,
+  }))
+);
+
+/* ---------- UTILS ---------- */
+function useLocalStorage(key, initial) {
+  const [state, setState] = useState(() => {
+    try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : initial; }
+    catch { return initial; }
+  });
+  useEffect(() => { try { localStorage.setItem(key, JSON.stringify(state)); } catch {} }, [key, state]);
+  return [state, setState];
+}
+
+function useDebounced(value, ms = 250) {
+  const [v, setV] = useState(value);
+  useEffect(() => { const t = setTimeout(() => setV(value), ms); return () => clearTimeout(t); }, [value, ms]);
+  return v;
+}
+
+/* ---------- MAIN APP ---------- */
+export default function App() {
+  const [isLocked, setIsLocked] = useLocalStorage("due:isLocked", true);
+  const [currentWing, setCurrentWing] = useLocalStorage("due:wing", "Dashboard");
+  const [search, setSearch] = useLocalStorage("due:search", "");
+  const [collapsed, setCollapsed] = useLocalStorage("due:navCollapsed", false);
+  const [favorites, setFavorites] = useLocalStorage("due:favorites", []);
+  const [theme, setTheme] = useLocalStorage("due:theme", "gold"); // gold, cyan, matrix
+  
+  const [activeItem, setActiveItem] = useState(null);
+  const [glitch, setGlitch] = useState(false);
+  const [toasts, setToasts] = useState([]);
+  const [scanlines, setScanlines] = useState(true);
+
+  const debouncedSearch = useDebounced(search, 220);
+
+  // Theme configuration
+  const themes = {
+    gold: { accent: "#b8924e", bg: "#030303", text: "slate-300" },
+    cyan: { accent: "#00f0ff", bg: "#000810", text: "cyan-100" },
+    matrix: { accent: "#00ff41", bg: "#000500", text: "green-100" }
+  };
+  const activeTheme = themes[theme];
+
+  const showToast = (msg) => {
+    const id = Date.now();
+    setToasts(t => [...t, { id, msg }]);
+    setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 3000);
+  };
+
+  const toggleFavorite = (id) => {
+    if (favorites.includes(id)) {
+      setFavorites(favorites.filter(f => f !== id));
+      showToast("Removed from favorites");
+    } else {
+      setFavorites([...favorites, id]);
+      showToast("Added to favorites");
+    }
+  };
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (Math.random() > 0.985) {
+        setGlitch(true);
+        setTimeout(() => setGlitch(false), 140);
+      }
+    }, 3000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    function onKey(e) {
+      if (e.key === "Escape") {
+        if (activeItem) setActiveItem(null);
+        else if (document.activeElement.id === "global-search-input") setSearch("");
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        document.querySelector("#global-search-input")?.focus();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [activeItem, setSearch]);
+
+  const filtered = useMemo(() => {
+    const q = debouncedSearch.trim().toLowerCase();
+    return MASTER_DB.filter((item) => {
+      const inWing = ["Dashboard", "Gallery", "All"].includes(currentWing) || item.wing === currentWing;
+      if (!inWing) return false;
+      if (!q) return true;
+      const hay = `${item.id} ${item.title} ${item.type} ${item.tags.join(" ")} ${item.summary}`.toLowerCase();
+      return q.split(/\s+/).filter(Boolean).every((t) => hay.includes(t));
+    });
+  }, [currentWing, debouncedSearch]);
+
+  if (isLocked) {
+    return <LockScreen onUnlock={() => setIsLocked(false)} themeAccent={activeTheme.accent} />;
+  }
+
+  return (
+    <div 
+      className={`h-screen w-full flex overflow-hidden relative font-mono transition-colors duration-500`}
+      style={{ backgroundColor: activeTheme.bg, color: activeTheme.accent, '--theme-accent': activeTheme.accent }}
+    >
+      <style>{`
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); }
+        ::-webkit-scrollbar-thumb { background: var(--theme-accent); opacity: 0.5; border-radius: 4px; }
+        .glitch-hover:hover { animation: glitch 0.2s linear infinite; }
+        @keyframes glitch {
+          0% { transform: translate(0) }
+          20% { transform: translate(-2px, 2px) }
+          40% { transform: translate(-2px, -2px) }
+          60% { transform: translate(2px, 2px) }
+          80% { transform: translate(2px, -2px) }
+          100% { transform: translate(0) }
+        }
+        .scanlines {
+          background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.1));
+          background-size: 100% 4px;
+          pointer-events: none;
+        }
+      `}</style>
+
+      {/* OVERLAYS */}
+      {scanlines && <div className="absolute inset-0 scanlines z-[100] opacity-50" />}
+      <div className={`absolute inset-0 pointer-events-none transition-opacity ${glitch ? "opacity-100 bg-white/5 mix-blend-overlay" : "opacity-0"}`} />
+
+      {/* TOASTS */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[200] flex flex-col gap-2">
+        {toasts.map(t => (
+          <div key={t.id} className="px-4 py-2 bg-black/80 border text-xs rounded-full backdrop-blur flex items-center gap-2 animate-bounce" style={{ borderColor: activeTheme.accent, color: activeTheme.accent }}>
+            <CheckCircle2 size={14} /> {t.msg}
+          </div>
+        ))}
+      </div>
+
+      {/* SIDE NAV */}
+      <nav className={`flex flex-col ${collapsed ? "w-16" : "w-64"} border-r border-white/5 bg-black/50 backdrop-blur-md z-50 transition-all duration-300`}>
+        <div className="flex items-center gap-4 px-4 py-6 border-b border-white/5">
+          <Shield size={22} className="animate-pulse" style={{ color: activeTheme.accent }} />
+          {!collapsed && (
+            <div className="whitespace-nowrap overflow-hidden">
+              <div className="text-[10px] text-white/40 tracking-[0.2em] font-black uppercase">Internal Archive</div>
+              <div className="text-sm font-black uppercase" style={{ color: activeTheme.accent }}>D.U.E. // STATION</div>
+            </div>
+          )}
+          <button onClick={() => setCollapsed(s => !s)} className="ml-auto p-2 rounded hover:bg-white/10 transition-colors text-white/50" title="Toggle Sidebar">
+            <Monitor size={16} />
+          </button>
+        </div>
+
+        <div className="flex-1 px-3 py-6 space-y-2 overflow-y-auto custom-scroll">
+          {[
+            { id: "Dashboard", icon: Box },
+            { id: "Stacks", icon: Database },
+            { id: "Gallery", icon: ImageIcon },
+            { id: "Map", icon: MapIcon },
+            { id: "Vault", icon: Terminal }
+          ].map(nav => (
+            <NavButton
+              key={nav.id}
+              Icon={nav.icon}
+              label={nav.id}
+              active={currentWing === nav.id}
+              collapsed={collapsed}
+              accent={activeTheme.accent}
+              onClick={() => { setCurrentWing(nav.id); setActiveItem(null); }}
+            />
+          ))}
+        </div>
+
+        <div className="px-4 py-4 border-t border-white/5 flex flex-col gap-3">
+           {!collapsed && (
+            <div className="flex justify-between items-center text-[10px] uppercase font-bold text-white/40 px-1">
+              <span>Theme</span>
+              <div className="flex gap-2">
+                <button onClick={() => setTheme('gold')} className={`w-3 h-3 rounded-full bg-[#b8924e] ${theme === 'gold' ? 'ring-2 ring-white' : ''}`} />
+                <button onClick={() => setTheme('cyan')} className={`w-3 h-3 rounded-full bg-[#00f0ff] ${theme === 'cyan' ? 'ring-2 ring-white' : ''}`} />
+                <button onClick={() => setTheme('matrix')} className={`w-3 h-3 rounded-full bg-[#00ff41] ${theme === 'matrix' ? 'ring-2 ring-white' : ''}`} />
+              </div>
+            </div>
+           )}
+          <div className="flex items-center gap-2">
+            <button onClick={() => setIsLocked(true)} className="flex-1 px-3 py-2 bg-red-900/20 border border-red-500/30 text-red-400 text-[12px] rounded-lg hover:bg-red-900/40 transition-colors flex items-center justify-center gap-2">
+              <Lock size={14} /> {!collapsed && <span>LOCK SYS</span>}
+            </button>
+            <button onClick={() => setScanlines(!scanlines)} className="p-2 border border-white/10 rounded-lg hover:bg-white/5 text-white/50" title="Toggle Scanlines">
+              <Activity size={14} />
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      {/* MAIN */}
+      <div className={`flex-1 flex flex-col min-w-0 text-${activeTheme.text}`}>
+        <Header 
+          currentWing={currentWing} search={search} setSearch={setSearch} 
+          setCurrentWing={setCurrentWing} accent={activeTheme.accent} 
+        />
+
+        <main className="flex-1 overflow-y-auto relative custom-scroll p-4 md:p-8">
+          {currentWing === "Vault" && <VaultTerminal accent={activeTheme.accent} />}
+          {currentWing === "Dashboard" && <DashboardView counts={MASTER_DB.length} db={MASTER_DB} setWing={setCurrentWing} accent={activeTheme.accent} />}
+          {currentWing === "Map" && <SectorMapView accent={activeTheme.accent} />}
+          {currentWing === "Gallery" && <GalleryView items={filtered} onOpen={setActiveItem} accent={activeTheme.accent} />}
+
+          {(["Stacks", "Cases", "All"].includes(currentWing)) && (
+            <div className="max-w-6xl mx-auto space-y-6">
+              <div className="flex justify-between items-end border-b border-white/10 pb-4">
+                <h2 className="text-xl font-bold uppercase tracking-widest">{currentWing} Records</h2>
+                <span className="text-xs opacity-50">{filtered.length} Results</span>
+              </div>
+              
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                {filtered.map((it, i) => (
+                  <div key={it.id} className="animate-in fade-in slide-in-from-bottom-4" style={{ animationDelay: `${i * 50}ms` }}>
+                    <RecordCard 
+                      item={it} 
+                      onClick={() => setActiveItem(it)} 
+                      isActive={activeItem?.id === it.id}
+                      isFav={favorites.includes(it.id)}
+                      onFav={(e) => { e.stopPropagation(); toggleFavorite(it.id); }}
+                      accent={activeTheme.accent}
+                    />
+                  </div>
+                ))}
+                {filtered.length === 0 && (
+                  <div className="col-span-full p-12 text-center border border-white/5 rounded-2xl bg-white/5 flex flex-col items-center gap-4">
+                    <Search size={32} className="opacity-20" />
+                    <div className="text-sm opacity-50 uppercase tracking-widest">No matching records found</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </main>
+      </div>
+
+      {/* DETAIL ASIDE */}
+      <aside aria-hidden={!activeItem} className={`w-[480px] border-l border-white/10 bg-black/90 backdrop-blur-2xl flex flex-col transition-transform transform duration-300 z-[60] ${activeItem ? "translate-x-0" : "translate-x-full"} absolute right-0 top-0 bottom-0`}>
+        <div className="h-16 flex items-center justify-between px-6 border-b border-white/10">
+          <div className="text-[10px] font-black uppercase tracking-widest" style={{ color: activeTheme.accent }}>Record Inspector</div>
+          <div className="flex items-center gap-3">
+            {activeItem && (
+              <button onClick={() => { navigator.clipboard.writeText(activeItem.id); showToast("ID Copied!"); }} className="text-xs opacity-50 hover:opacity-100 flex items-center gap-1 transition-opacity">
+                <Copy size={12} /> {activeItem.id}
+              </button>
+            )}
+            <button onClick={() => setActiveItem(null)} className="p-2 rounded hover:bg-white/10 transition-colors">
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scroll">
+          {activeItem ? <DetailContent item={activeItem} accent={activeTheme.accent} onToast={showToast} isFav={favorites.includes(activeItem.id)} toggleFav={() => toggleFavorite(activeItem.id)} /> : null}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+/* ---------- COMPONENTS ---------- */
+
+function Header({ currentWing, search, setSearch, setCurrentWing, accent }) {
+  const [time, setTime] = useState(new Date().toLocaleTimeString());
+  useEffect(() => { const t = setInterval(() => setTime(new Date().toLocaleTimeString()), 1000); return () => clearInterval(t); }, []);
+
+  return (
+    <header className="h-16 border-b border-white/10 flex items-center justify-between px-6 bg-black/60 backdrop-blur-xl z-40 sticky top-0">
+      <div className="flex items-center gap-8">
+        <div>
+          <div className="text-[9px] text-white/40 tracking-[0.4em] font-black uppercase">Active Directory</div>
+          <div className="text-[14px] font-bold uppercase tracking-widest" style={{ color: accent }}>{currentWing}</div>
+        </div>
+
+        <div className="relative group">
+          <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 focus-within:border-white/30 transition-colors">
+            <Search size={14} className="opacity-50" />
+            <input
+              id="global-search-input"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search database... (Ctrl+K)"
+              className="bg-transparent outline-none text-sm text-white placeholder:text-white/30 w-64"
+            />
+            {search && <button onClick={() => setSearch("")} className="p-1 rounded hover:bg-white/10"><X size={14} /></button>}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-6 text-[10px] font-bold tracking-wider">
+        <div className="flex items-center gap-2 opacity-60"><Clock size={12} /> {time}</div>
+        <div className="flex items-center gap-2 text-green-500"><div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> SYS_STABLE</div>
+      </div>
+    </header>
+  );
+}
+
+function NavButton({ Icon, label, active, onClick, collapsed, accent }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group relative ${
+        active ? "bg-white/10" : "text-white/40 hover:bg-white/5 hover:text-white/80"
+      }`}
+      style={active ? { color: accent, boxShadow: `inset 2px 0 0 0 ${accent}` } : {}}
+      title={collapsed ? label : undefined}
+    >
+      <Icon size={18} className={active ? "opacity-100" : "opacity-60 group-hover:opacity-100 transition-opacity"} />
+      {!collapsed && <span className="text-[12px] font-bold uppercase tracking-widest">{label}</span>}
+    </button>
+  );
+}
+
+function RecordCard({ item, onClick, isActive, isFav, onFav, accent }) {
+  const stabilityColor = parseFloat(item.stability) < 4 ? 'text-red-400' : parseFloat(item.stability) > 8 ? 'text-green-400' : 'text-yellow-400';
+  const progressPercent = (parseFloat(item.stability) / 10) * 100;
+
+  return (
+    <article
+      onClick={onClick}
+      className={`p-5 border rounded-xl cursor-pointer transition-all transform hover:-translate-y-1 relative overflow-hidden group ${
+        isActive ? "bg-white/10 border-white/30" : "bg-black/40 border-white/10 hover:border-white/20"
+      }`}
+      style={isActive ? { boxShadow: `0 0 20px -10px ${accent}` } : {}}
+    >
+      <div className="flex justify-between items-start mb-3">
+        <span className="text-[10px] font-black tracking-wider glitch-hover" style={{ color: accent }}>{item.id}</span>
+        <div className="flex gap-2">
+          <button onClick={onFav} className="p-1 rounded hover:bg-white/10 transition-colors">
+            <Star size={14} className={isFav ? "fill-yellow-500 text-yellow-500" : "text-white/30"} />
+          </button>
+          <div className="px-2 py-0.5 border border-white/20 text-[8px] text-white/60 font-black uppercase rounded backdrop-blur-sm">{item.type}</div>
+        </div>
+      </div>
+      <h3 className="text-white font-bold uppercase tracking-tight text-lg mb-2">{item.title}</h3>
+      <p className="text-xs text-white/50 line-clamp-2 italic mb-4 leading-relaxed">"{item.summary}"</p>
+      
+      <div className="flex items-center justify-between mt-auto">
+        <div className="flex gap-1.5 flex-wrap">
+          {item.tags?.slice(0, 2).map((t) => <span key={t} className="text-[9px] px-2 py-0.5 bg-white/10 border border-white/5 rounded text-white/70 uppercase tracking-wider">{t}</span>)}
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          <span className={`text-[9px] font-bold uppercase ${stabilityColor}`}>Stability: {item.stability}</span>
+          <div className="w-16 h-1 bg-white/10 rounded-full overflow-hidden">
+            <div className={`h-full ${stabilityColor.replace('text', 'bg')}`} style={{ width: `${progressPercent}%` }} />
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function DetailContent({ item, accent, onToast, isFav, toggleFav }) {
+  const [tab, setTab] = useState('info');
+  const [lightbox, setLightbox] = useState(false);
+
+  return (
+    <>
+      {lightbox && (
+        <div className="fixed inset-0 z-[999] bg-black/95 flex items-center justify-center p-8 backdrop-blur-sm" onClick={() => setLightbox(false)}>
+          <img src={item.image} alt="Fullscreen" className="max-w-full max-h-full rounded-xl border border-white/20 object-contain shadow-2xl" />
+          <button className="absolute top-6 right-6 p-3 bg-white/10 rounded-full text-white hover:bg-white/20"><X size={24} /></button>
+        </div>
+      )}
+
+      <div className="relative group w-full aspect-video rounded-xl overflow-hidden border border-white/20 bg-black cursor-pointer" onClick={() => setLightbox(true)}>
+        <LazyImage src={item.image} placeholder={item.thumb} alt={item.title} />
+        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
+          <Maximize2 size={32} className="text-white drop-shadow-md" />
+        </div>
+      </div>
+
+      <div className="flex justify-between items-end border-b border-white/10 pb-4">
+        <div>
+          <h2 className="text-2xl font-black text-white uppercase tracking-tight">{item.title}</h2>
+          <div className="text-xs font-bold mt-2 flex gap-3 opacity-80" style={{ color: accent }}>
+            <span>{item.classification}</span> • <span>DENS: {item.density}</span>
+          </div>
+        </div>
+        <button onClick={toggleFav} className="p-2 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10">
+          <Star size={16} className={isFav ? "fill-yellow-500 text-yellow-500" : "text-white/50"} />
+        </button>
+      </div>
+
+      <div className="flex gap-4 border-b border-white/10">
+        <button onClick={() => setTab('info')} className={`pb-2 text-xs font-bold uppercase tracking-wider ${tab === 'info' ? 'border-b-2 text-white' : 'text-white/40 border-transparent hover:text-white/70'}`} style={tab === 'info' ? { borderColor: accent } : {}}>Information</button>
+        <button onClick={() => setTab('raw')} className={`pb-2 text-xs font-bold uppercase tracking-wider ${tab === 'raw' ? 'border-b-2 text-white' : 'text-white/40 border-transparent hover:text-white/70'}`} style={tab === 'raw' ? { borderColor: accent } : {}}>Raw Data</button>
+      </div>
+
+      {tab === 'info' ? (
+        <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
+          <p className="text-white/80 italic font-serif leading-relaxed text-sm border-l-2 pl-4" style={{ borderColor: accent }}>"{item.narrative}"</p>
+          <div className="p-4 bg-white/5 border border-white/10 rounded-xl text-xs">
+            <strong className="uppercase text-[9px] block text-white/40 mb-2 tracking-widest">Executive Summary</strong>
+            <div className="text-white/70 leading-relaxed">{item.summary}</div>
+          </div>
+          {item.meta && (
+            <div className="p-3 bg-yellow-900/20 border border-yellow-500/30 rounded-lg text-xs flex gap-3 items-start">
+              <AlertTriangle size={14} className="text-yellow-500 shrink-0 mt-0.5" />
+              <div className="text-yellow-200/80">{item.meta}</div>
+            </div>
+          )}
+          <div>
+            <strong className="uppercase text-[9px] block text-white/40 mb-3 tracking-widest">Cross-Reference Tags</strong>
+            <div className="flex gap-2 flex-wrap">
+              {item.tags?.map((t) => <span key={t} className="text-[10px] px-3 py-1.5 bg-white/5 border border-white/10 rounded-full text-white/80 uppercase tracking-wider">{t}</span>)}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="p-4 bg-black border border-white/10 rounded-xl animate-in fade-in slide-in-from-left-4">
+          <pre className="text-[10px] text-green-400/80 overflow-x-auto custom-scroll leading-relaxed">
+            {JSON.stringify(item, null, 2)}
+          </pre>
+        </div>
+      )}
+
+      <div className="pt-6 mt-6 border-t border-white/10 flex gap-3">
+        <button onClick={() => {
+          const blob = new Blob([JSON.stringify(item, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = `${item.id}.json`; a.click();
+          onToast("Data Exported");
+        }} className="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-white/10 transition-colors flex justify-center items-center gap-2">
+          <Download size={14} /> Export JSON
+        </button>
+      </div>
+    </>
+  );
+}
+
+function DashboardView({ counts, db, setWing, accent }) {
+  const avgStability = (db.reduce((acc, curr) => acc + parseFloat(curr.stability), 0) / counts).toFixed(2);
+  const anomalies = db.filter(d => parseFloat(d.density) > 0.5).length;
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in zoom-in-95">
+      <h2 className="text-3xl font-black uppercase tracking-widest mb-8" style={{ color: accent }}>System Overview</h2>
+      
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {[
+          { label: "Total Records", val: counts, color: "text-white" },
+          { label: "Avg Stability", val: `${avgStability} Ω`, color: "text-green-400" },
+          { label: "High-Density Anomalies", val: anomalies, color: "text-red-400" }
+        ].map((stat, i) => (
+          <div key={i} className="p-6 bg-black/40 border border-white/10 rounded-2xl flex flex-col justify-between h-32 relative overflow-hidden group">
+            <div className="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity"><Activity size={100} /></div>
+            <span className="text-[10px] uppercase font-bold tracking-widest text-white/50">{stat.label}</span>
+            <span className={`text-4xl font-black ${stat.color}`}>{stat.val}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="p-6 bg-white/5 border border-white/10 rounded-2xl">
+          <h3 className="text-sm font-bold uppercase mb-6 tracking-widest text-white/70 border-b border-white/10 pb-4">Quick Access</h3>
+          <div className="space-y-2">
+            {['Stacks', 'Cases', 'Gallery'].map(w => (
+              <button key={w} onClick={() => setWing(w)} className="w-full text-left p-3 hover:bg-white/5 border border-transparent hover:border-white/10 rounded-lg transition-colors flex justify-between text-sm uppercase tracking-wider">
+                <span>Access {w}</span> <span style={{ color: accent }}>→</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="p-6 bg-white/5 border border-white/10 rounded-2xl">
+          <h3 className="text-sm font-bold uppercase mb-6 tracking-widest text-white/70 border-b border-white/10 pb-4">Recent Activity Logs</h3>
+          <div className="space-y-3 font-mono text-xs opacity-70">
+            <div className="flex gap-4"><span>[14:02]</span><span className="text-green-400">SYS_BACKUP_COMPLETE</span></div>
+            <div className="flex gap-4"><span>[13:45]</span><span className="text-yellow-400">ACCESS_GRANTED: DUE-VOL-10</span></div>
+            <div className="flex gap-4"><span>[11:20]</span><span className="text-red-400">WARNING: DENSITY SPIKE SECTOR 4</span></div>
+            <div className="flex gap-4"><span>[09:00]</span><span className="text-white">USER_LOGIN: DIRECTOR</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SectorMapView({ accent }) {
+  // Generate fake map nodes
+  const nodes = Array.from({ length: 24 }).map((_, i) => ({
+    id: i, x: Math.random() * 80 + 10, y: Math.random() * 80 + 10, active: Math.random() > 0.8
+  }));
+
+  return (
+    <div className="h-full min-h-[600px] w-full max-w-5xl mx-auto border border-white/10 rounded-3xl bg-black/60 relative overflow-hidden group">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[length:40px_40px] opacity-20" />
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div className="w-[800px] h-[800px] border border-white/5 rounded-full animate-[spin_60s_linear_infinite] border-dashed" />
+        <div className="absolute w-[400px] h-[400px] border border-white/5 rounded-full animate-[spin_30s_linear_infinite_reverse]" />
+      </div>
+      
+      {nodes.map(n => (
+        <div key={n.id} className="absolute w-4 h-4 -ml-2 -mt-2 group/node cursor-pointer" style={{ left: `${n.x}%`, top: `${n.y}%` }}>
+          <div className={`w-2 h-2 rounded-full m-1 ${n.active ? 'bg-red-500 shadow-[0_0_10px_red]' : 'bg-white/30'}`} style={!n.active ? { backgroundColor: accent, boxShadow: `0 0 10px ${accent}` } : {}} />
+          <div className="hidden group-hover/node:block absolute top-4 left-4 bg-black/90 border border-white/20 p-2 text-[10px] rounded backdrop-blur z-10 w-32">
+            <div className="font-bold mb-1 uppercase text-white/80">Sector {n.id}</div>
+            <div className={n.active ? "text-red-400" : "text-green-400"}>{n.active ? "ANOMALY DETECTED" : "CLEAR"}</div>
+          </div>
+        </div>
+      ))}
+      <div className="absolute bottom-6 left-6 text-xs uppercase tracking-widest text-white/40 font-bold bg-black/50 px-3 py-1 rounded backdrop-blur border border-white/10">Tactical Sector Map</div>
+    </div>
+  );
+}
+
+function GalleryView({ items, onOpen, accent }) {
+  return (
+    <div className="max-w-7xl mx-auto space-y-6">
+      <div className="flex justify-between items-end border-b border-white/10 pb-4">
+        <h2 className="text-xl font-bold uppercase tracking-widest">Visual Archives</h2>
+      </div>
+      <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-6 space-y-6">
+        {items.map((item) => (
+          <div
+            key={item.id} onClick={() => onOpen(item)}
+            className="break-inside-avoid relative group cursor-pointer bg-black rounded-xl overflow-hidden hover:ring-2 transition-all block animate-in fade-in"
+            style={{ ringColor: accent }}
+          >
+            <div className="w-full">
+              <LazyImage src={item.image} placeholder={item.thumb} alt={item.title} />
+            </div>
+            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-60 group-hover:opacity-80 transition-opacity" />
+            <div className="absolute bottom-0 w-full p-4 transform translate-y-2 group-hover:translate-y-0 transition-transform">
+              <span className="text-[9px] font-black tracking-widest block mb-1 drop-shadow-md" style={{ color: accent }}>{item.id}</span>
+              <h3 className="text-white font-bold uppercase text-xs tracking-wider truncate drop-shadow-md">{item.title}</h3>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function VaultTerminal({ accent }) {
+  const [history, setHistory] = useState([
+    { text: "D.U.E_OS_V4.9.1 INITIALIZED", type: "system" }, 
+    { text: "Type 'help' for available commands.", type: "info" }
+  ]);
+  const inputRef = useRef(null);
+
+  useEffect(() => { const t = setTimeout(() => inputRef.current?.focus(), 250); return () => clearTimeout(t); }, []);
+
+  function onSubmit(e) {
+    e.preventDefault();
+    const val = inputRef.current.value.trim();
+    if (!val) return;
+    
+    let res = { text: `COMMAND NOT RECOGNIZED: ${val}`, type: "error" };
+    const cmd = val.toLowerCase();
+    
+    if (cmd === 'help') res = { text: "AVAILABLE COMMANDS: clear, help, ping, status, ls", type: "info" };
+    else if (cmd === 'clear') { setHistory([]); inputRef.current.value = ""; return; }
+    else if (cmd === 'ping') res = { text: "PONG - Latency: 12ms", type: "success" };
+    else if (cmd === 'status') res = { text: "SYSTEM NOMINAL. NO CONTAINMENT BREACHES.", type: "success" };
+    else if (cmd === 'ls') res = { text: "DIRECTORIES: /stacks /cases /vault /quarantine", type: "info" };
+
+    setHistory(h => [...h, { text: `> ${val}`, type: "input" }, res]);
+    inputRef.current.value = "";
+    setTimeout(() => inputRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }), 50);
+  }
+
+  const getColor = (type) => {
+    switch(type) {
+      case 'error': return 'text-red-400';
+      case 'success': return 'text-green-400';
+      case 'info': return 'text-blue-300';
+      case 'input': return 'text-white';
+      default: return 'text-white/50';
+    }
+  };
+
+  return (
+    <div className="h-full max-w-4xl mx-auto p-4 md:p-8 font-mono text-sm animate-in fade-in zoom-in-95">
+      <div className="h-full min-h-[500px] border border-white/10 bg-black/80 backdrop-blur-md rounded-2xl p-6 flex flex-col shadow-2xl relative overflow-hidden group">
+        <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: accent }} />
+        <div className="flex-1 overflow-auto custom-scroll space-y-1 mb-4 pb-4">
+          {history.map((h, i) => (
+             <div key={i} className={`${getColor(h.type)} tracking-wider opacity-90`}>{h.text}</div>
+          ))}
+          <div ref={inputRef} />
+        </div>
+        <form onSubmit={onSubmit} className="flex gap-3 items-center border-t border-white/10 pt-4 relative">
+          <span className="font-bold text-lg" style={{ color: accent }}>$</span>
+          <input
+            ref={inputRef}
+            className="bg-transparent outline-none w-full text-white placeholder-white/20 uppercase tracking-widest caret-white"
+            placeholder="AWAITING COMMAND..."
+            spellCheck="false"
+            autoComplete="off"
+          />
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function LazyImage({ src, placeholder, alt }) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <div className="w-full h-full relative bg-white/5 overflow-hidden">
+      {!loaded && <div className="absolute inset-0 animate-pulse bg-white/10" />}
+      {placeholder && (
+        <img src={placeholder} alt="" aria-hidden="true" className={`absolute inset-0 w-full h-full object-cover filter blur-xl scale-110 transition-opacity duration-700 ${loaded ? "opacity-0" : "opacity-100"}`} />
+      )}
+      <img src={src} alt={alt} loading="lazy" onLoad={() => setLoaded(true)} className={`relative w-full h-full object-cover transition-all duration-1000 ${loaded ? "opacity-100 scale-100 filter-none" : "opacity-0 scale-105 grayscale"}`} />
+    </div>
+  );
+}
+
+function LockScreen({ onUnlock, themeAccent }) {
+  const [progress, setProgress] = useState(0);
+  const [authenticating, setAuthenticating] = useState(false);
+  const text = "UNAUTHORIZED ACCESS PROHIBITED";
+  const [displayTxt, setDisplayTxt] = useState("");
+
+  useEffect(() => {
+    let i = 0;
+    const t = setInterval(() => {
+      setDisplayTxt(text.slice(0, i));
+      i++;
+      if (i > text.length) clearInterval(t);
+    }, 50);
+    return () => clearInterval(t);
+  }, []);
+
+  const handleUnlock = () => {
+    setAuthenticating(true);
+    let p = 0;
+    const t = setInterval(() => {
+      p += Math.random() * 15;
+      if (p >= 100) { clearInterval(t); setProgress(100); setTimeout(onUnlock, 400); } 
+      else setProgress(p);
+    }, 100);
+  };
+
+  return (
+    <div className="h-screen w-full bg-black flex flex-col items-center justify-center font-mono relative overflow-hidden">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[length:24px_24px]" />
+      
+      <div className="z-10 flex flex-col items-center gap-12 max-w-md w-full px-6">
+        <Shield size={64} className="opacity-80" style={{ color: themeAccent }} />
+        
+        <div className="text-center h-8 text-red-500/80 text-xs font-bold tracking-[0.5em]">{displayTxt}<span className="animate-pulse">_</span></div>
+        
+        {!authenticating ? (
+          <button onClick={handleUnlock} className="w-full py-4 border text-xs font-black uppercase tracking-[0.5em] rounded-lg bg-black hover:bg-white/5 transition-all group overflow-hidden relative" style={{ color: themeAccent, borderColor: `${themeAccent}40` }}>
+             <span className="relative z-10 group-hover:drop-shadow-[0_0_8px_currentColor]">Initiate Handshake</span>
+          </button>
+        ) : (
+          <div className="w-full space-y-4">
+            <div className="text-[10px] text-white/50 uppercase tracking-widest text-center animate-pulse">Decrypting local node...</div>
+            <div className="h-1 w-full bg-white/10 rounded-full overflow-hidden">
+              <div className="h-full transition-all duration-75" style={{ width: `${progress}%`, backgroundColor: themeAccent }} />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
